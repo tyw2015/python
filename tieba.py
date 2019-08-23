@@ -16,7 +16,7 @@ import re
 import traceback
 import logging
 
-pwd = '/Users/tyw/Desktop/python1'
+pwd = '/Users/t1yw/Desktop/python1'
 
 logging.basicConfig(level=logging.INFO,
                 format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
