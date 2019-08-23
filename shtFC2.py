@@ -15,8 +15,9 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 pwd = os.getcwd()
 
+# logging配置
 logging.basicConfig(level=logging.INFO,
-                format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+                format=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())+' %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
                 datefmt='%a, %d %b %Y %H:%M:%S',
                 filename= pwd+"\\logs\\"+ time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime()) +".log",
                 filemode='w')
@@ -28,25 +29,36 @@ logging.getLogger('').addHandler(console)
 
 
 # 获取主页列表
-def getPage():
-    baseUrl = 'https://www.sehuatang.org/forum.php?mod=forumdisplay&fid=36&typeid=368&filter=typeid&typeid=368&mobile=2&page=5'
-    r = requests.get(baseUrl)
-    listPage = BeautifulSoup(r.text, "html5lib")
-    ul = listPage.find_all("h1")
-    urls = []
-    for li in ul:
-        logging.info(li.a["href"])
-        movieTitle = li.a.string
-        r1 = requests.get('https://www.sehuatang.org/'+li.a["href"],verify=False)
-        detailPage = BeautifulSoup(r1.text, "html5lib")
-        imgArr = detailPage.find_all("img",id=re.compile("aimg_"))
-        maglink = detailPage.find("div",class_="blockcode").find('li').string
-        for img in imgArr:
-            getImage(movieTitle,img.get('src'),maglink)
-    return urls
+def getPage(pageNum):
+    if(pageNum>5):
+        return False
+    else:
+        logging.info("获取第"+pageNum+"页内容")
+        baseUrl = "https://www.sehuatang.org/forum.php?mod=forumdisplay&fid=36&typeid=368&filter=typeid&typeid=368&mobile=2&page="+pageNum
+        r = requests.get(baseUrl)
+        listPage = BeautifulSoup(r.text, "html5lib")
+        ul = listPage.find_all("h1")
+        try:
+            for li in ul:
+                movieTitle = li.a.string
+                r1 = requests.get('https://www.sehuatang.org/'+li.a["href"],verify=False)
+                detailPage = BeautifulSoup(r1.text, "html5lib")
+                imgArr = detailPage.find_all("img",id=re.compile("aimg_"))
+                torrnt = detailPage.find("a",id=re.compile("aid"))
+                torrentName = torrnt.string
+                torrentLink = "https://www.sehuatang.org/"+torrnt['href']
+                maglink = detailPage.find("div",class_="blockcode").find('li').string
+                for img in imgArr:
+                    getImage(movieTitle,img.get('src'),torrentName,torrentLink,maglink)
+        except Exception as e:
+            logging.warn("爬取失败:"+str(e))
+            time.sleep(5)
+            getPage(pageNum)
+        finally:
+            getPage(pageNum+1)
 
 # 下载图片
-def getImage(title,url,maglink):
+def getImage(title,url,torrentName,torrentLink,maglink):
     # url ="https://ss0.bdstatic.com/5aV1bjqh_Q23odCf/static/superman/img/logo/bd_logo1_31bdc765.png"
     root = os.getcwd()+'\\'+title
     path = os.getcwd() + '\\'+title+'\\' + url.split('/')[-1]
@@ -59,7 +71,7 @@ def getImage(title,url,maglink):
                 with open(path, "wb") as f:
                     f.write(r.content)
                 print('爬取'+url+'中')
-                logging.info("爬取完成")
+                logging.info("下载完成：",torrentName.split('.')[0]+"图片"+url.split('/')[-1])
             else:
                 logging.info("文件已存在:")
                 logging.info("title:"+title)
@@ -71,46 +83,26 @@ def getImage(title,url,maglink):
                 with open(path, "wb") as f:
                     f.write(r.content)
                 print('爬取'+url+'中')
-                logging.info("爬取完成")
+                logging.info("下载完成：",torrentName.split('.')[0]+"图片"+url.split('/')[-1])
             else:
                 logging.info("文件已存在:")
                 logging.info("title:"+title)
                 logging.info("图片src:"+url)
-        if os.path.exists(root+'\\'+'link.txt'):
-            os.rmdir(root+'\\'+'link.txt' )
-        else:
-            print(1)
+        
         try:
-            file = open(root+'\\'+'link.txt', 'wb')
-            file.write(maglink)
+            torrentContent = requests.get(torrentLink).content
+            print('下载种子'+torrentName+'中')
+            logging.info("下载种子"+torrentName+"完成")
+            file = open(root+'\\'+torrentName, 'wb')
+            file.write(torrentContent)
             file.close()
         except IOError,e:
             print e
-    except Exception as e:
+    except Exception as e:        
         logging.warn("爬取失败:"+str(e))
-
-
-def test():
-    url = 'https://www.sehuatang.org/forum.php?mod=viewthread&tid=156633&extra=page=2&filter=typeid&typeid=368&mobile=2'
-    href="https://www.sehuatang.org/orum.php?mod=attachment&aid=MjE0MjU2fDdjNzc2OTY1fDE1NjY0ODE2NDB8MHwxNTY2MzM%3D&mobile=2"
-    r = requests.get(url)
-    html = BeautifulSoup(r.text, "html5lib")
-    imgArr = html.find_all("img",id=re.compile("aimg_"))
-    torrentLink = html.find("div",class_="blockcode").find('li')
-    print(torrentLink.string)
-    torrent = requests.get(href)
-    os.mkdir(os.getcwd()+"\\torrents\\")
-    os.mkdir(os.getcwd()+"\\torrents\\"+"123.torrent")
-    f=open(os.getcwd()+"\\torrents\\"+"123.torrent",'wb')
-    f.write(torrent.content)
-    # buffer = BytesIO(torrent.read())
-    # gz = gzip.GzipFile(fileobj=buffer)
-    # raw_data=gz.read()
-    # save(os.getcwd()+".\\torrents\\"+"123.torrent",raw_data)
-    # for img in imgArr:
-    #     print(img.get('title'))
-    #     getImage('123123',img.get('src'))
-    #     time.sleep(2)
+        time.sleep(5)
+        logging.info("重新爬取")
+        getImage(title,url,torrentName,torrentLink,maglink)
 
 def save(filename, content):
 
@@ -121,9 +113,29 @@ def save(filename, content):
     except IOError,e:
         print e
 
+def testTorrent():
+    url='https://www.sehuatang.org/forum.php?mod=attachment&aid=MjE0MjU2fDYxZTdjOWYxfDE1NjY0ODUzMzN8MHwxNTY2MzM%3D&mobile=2'
+    r = requests.get(url)
+    logging.info(r.text)
+    logging.info(r.content)
+    file = open(os.getcwd()+'\\test.torrent', 'wb')
+    file.write(r.content)
+    file.close()
+
+def callback(num):
+    logging.info(num)
+    if num==4:
+        logging.info('sleep')
+        time.sleep(3)
+        callback(num+1)
+    elif num==6:
+        logging.info('end')
+    else:
+        callback(num+1)
+
 if __name__ == '__main__':
     print('start======================================')
-    getPage()
+    getImage(1)
     # urls = getPage()
     # for url in urls:
     #     print url
