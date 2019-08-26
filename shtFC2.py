@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 import sys
 import gzip
 from io import BytesIO
+from string import replace
 reload(sys) 
 sys.setdefaultencoding('utf-8')
 pwd = os.getcwd()
@@ -30,32 +31,37 @@ logging.getLogger('').addHandler(console)
 
 # 获取主页列表
 def getPage(pageNum):
-    if(pageNum>5):
+    if(pageNum>15):
         return False
     else:
-        logging.info("获取第"+pageNum+"页内容")
-        baseUrl = "https://www.sehuatang.org/forum.php?mod=forumdisplay&fid=36&typeid=368&filter=typeid&typeid=368&mobile=2&page="+pageNum
-        r = requests.get(baseUrl)
-        listPage = BeautifulSoup(r.text, "html5lib")
-        ul = listPage.find_all("h1")
+        logging.info("获取第"+'%d'%pageNum+"页内容========================================================================")
+        baseUrl = "https://www.sehuatang.org/forum.php?mod=forumdisplay&fid=36&typeid=368&filter=typeid&typeid=368&mobile=2&page="+'%d'%pageNum
         try:
-            for li in ul:
-                movieTitle = li.a.string
-                r1 = requests.get('https://www.sehuatang.org/'+li.a["href"],verify=False)
-                detailPage = BeautifulSoup(r1.text, "html5lib")
-                imgArr = detailPage.find_all("img",id=re.compile("aimg_"))
-                torrnt = detailPage.find("a",id=re.compile("aid"))
-                torrentName = torrnt.string
-                torrentLink = "https://www.sehuatang.org/"+torrnt['href']
-                maglink = detailPage.find("div",class_="blockcode").find('li').string
-                for img in imgArr:
-                    getImage(movieTitle,img.get('src'),torrentName,torrentLink,maglink)
+            r = requests.get(baseUrl)
         except Exception as e:
             logging.warn("爬取失败:"+str(e))
             time.sleep(5)
-            getPage(pageNum)
-        finally:
-            getPage(pageNum+1)
+            r = requests.get(baseUrl)
+        listPage = BeautifulSoup(r.text, "html5lib")
+        ul = listPage.find_all("h1")
+        for li in ul:
+            movieTitle = li.a.string.replace('/', '-',  li.a.string.count('/'))
+            try:
+                r1 = requests.get('https://www.sehuatang.org/'+li.a["href"],verify=False)
+            except Exception as e:
+                logging.warn("爬取失败:"+str(e))
+                time.sleep(5)
+                r1 = requests.get('https://www.sehuatang.org/'+li.a["href"],verify=False)
+            detailPage = BeautifulSoup(r1.text, "html5lib")
+            imgArr = detailPage.find_all("img",id=re.compile("aimg_"))
+            torrnt = detailPage.find("a",id=re.compile("aid"))
+            torrentName = torrnt.string
+            torrentLink = "https://www.sehuatang.org/"+torrnt['href']
+            maglink = detailPage.find("div",class_="blockcode").find('li').string
+            for img in imgArr:
+                getImage(movieTitle,img.get('src'),torrentName,torrentLink,maglink)
+        getPage(pageNum+1)
+
 
 # 下载图片
 def getImage(title,url,torrentName,torrentLink,maglink):
@@ -71,7 +77,7 @@ def getImage(title,url,torrentName,torrentLink,maglink):
                 with open(path, "wb") as f:
                     f.write(r.content)
                 print('爬取'+url+'中')
-                logging.info("下载完成：",torrentName.split('.')[0]+"图片"+url.split('/')[-1])
+                logging.info("下载完成："+torrentName.split('.')[0]+"图片"+url.split('/')[-1])
             else:
                 logging.info("文件已存在:")
                 logging.info("title:"+title)
@@ -83,7 +89,7 @@ def getImage(title,url,torrentName,torrentLink,maglink):
                 with open(path, "wb") as f:
                     f.write(r.content)
                 print('爬取'+url+'中')
-                logging.info("下载完成：",torrentName.split('.')[0]+"图片"+url.split('/')[-1])
+                logging.info("下载完成："+torrentName.split('.')[0]+"图片"+url.split('/')[-1])
             else:
                 logging.info("文件已存在:")
                 logging.info("title:"+title)
@@ -97,11 +103,15 @@ def getImage(title,url,torrentName,torrentLink,maglink):
             file.write(torrentContent)
             file.close()
         except IOError,e:
+            logging.warn("爬取种子失败:"+str(e))
+            time.sleep(5)
+            logging.info("重新爬取种子")
+            getImage(title,url,torrentName,torrentLink,maglink)
             print e
     except Exception as e:        
         logging.warn("爬取失败:"+str(e))
         time.sleep(5)
-        logging.info("重新爬取")
+        logging.info("重新爬取图片")
         getImage(title,url,torrentName,torrentLink,maglink)
 
 def save(filename, content):
@@ -135,7 +145,7 @@ def callback(num):
 
 if __name__ == '__main__':
     print('start======================================')
-    getImage(1)
+    getPage(10)
     # urls = getPage()
     # for url in urls:
     #     print url
